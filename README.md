@@ -4,6 +4,8 @@ Harmonic Quest is a four-move composition game for the Audiotool Let’s Build! 
 
 **Live app:** https://harmonic-quest-nexus.aviadcoh.chatgpt.site
 
+**Demo video:** [Watch the 2:25 narrated walkthrough](demo/harmonic-quest-demo.mp4)
+
 ## Why it exists
 
 Most harmony tools either generate a finished result or teach theory away from the act of making music. Harmonic Quest keeps the musician in the decision loop: every choice is audible, every move has a short explanation, and the result remains editable inside the DAW.
@@ -41,12 +43,12 @@ The local server uses `http://127.0.0.1:3000/` because the Audiotool OAuth redir
 
 ```bash
 npm run build
-node --test tests/rendered-html.test.mjs
+node --test tests/rendered-html.test.mjs tests/nexus-transaction.test.mjs
 ```
 
 ## Submission materials
 
 - Working application: https://harmonic-quest-nexus.aviadcoh.chatgpt.site
 - Source: https://github.com/aviad12g/harmonic-quest
-- Demo: 2–5 minute walkthrough showing the game and live Nexus write
+- Demo: [2:25 narrated walkthrough](demo/harmonic-quest-demo.mp4)
 - License: project code remains owned by the creator; Audiotool Nexus is MIT licensed

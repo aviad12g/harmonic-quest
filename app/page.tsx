@@ -494,19 +494,24 @@ export default function Home() {
           syncStage = "creating the note collection";
           const collection = transaction.create("noteCollection", {});
           syncStage = "creating the four-bar MIDI region";
-          transaction.create("noteRegion", {
+          const noteRegion = transaction.create("noteRegion", {
             track: track.location,
             collection: collection.location,
-            region: {
-              positionTicks: 0,
-              durationTicks: totalTicks,
-              loopDurationTicks: totalTicks,
-              collectionOffsetTicks: 0,
-              loopOffsetTicks: 0,
-              colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
-              displayName: `${KEYS[keyIndex]} ${quest.mode} · ${chosenChords.map((chord) => chord.roman).join(" – ")}`,
-            },
           });
+          syncStage = "setting the MIDI region timing";
+          transaction.update(noteRegion.fields.region.fields.positionTicks, 0);
+          transaction.update(noteRegion.fields.region.fields.durationTicks, totalTicks);
+          transaction.update(noteRegion.fields.region.fields.loopDurationTicks, totalTicks);
+          transaction.update(noteRegion.fields.region.fields.collectionOffsetTicks, 0);
+          transaction.update(noteRegion.fields.region.fields.loopOffsetTicks, 0);
+          transaction.update(
+            noteRegion.fields.region.fields.colorIndex,
+            questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
+          );
+          transaction.update(
+            noteRegion.fields.region.fields.displayName,
+            `${KEYS[keyIndex]} ${quest.mode} · ${chosenChords.map((chord) => chord.roman).join(" – ")}`,
+          );
           syncStage = "creating the chord notes";
           chosenChords.forEach((chord, barIndex) => {
             chord.tones.forEach((tone, toneIndex) => {

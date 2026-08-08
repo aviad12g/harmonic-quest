@@ -40,19 +40,17 @@ test("creates the Harmonic Quest Nexus arrangement", async () => {
     orderAmongTracks: 0,
   });
   const collection = transaction.create("noteCollection", {});
-  transaction.create("noteRegion", {
+  const noteRegion = transaction.create("noteRegion", {
     track: track.location,
     collection: collection.location,
-    region: {
-      positionTicks: 0,
-      durationTicks: totalTicks,
-      loopDurationTicks: totalTicks,
-      collectionOffsetTicks: 0,
-      loopOffsetTicks: 0,
-      colorIndex: 6,
-      displayName: "A major · I – vi – V – I",
-    },
   });
+  transaction.update(noteRegion.fields.region.fields.positionTicks, 0);
+  transaction.update(noteRegion.fields.region.fields.durationTicks, totalTicks);
+  transaction.update(noteRegion.fields.region.fields.loopDurationTicks, totalTicks);
+  transaction.update(noteRegion.fields.region.fields.collectionOffsetTicks, 0);
+  transaction.update(noteRegion.fields.region.fields.loopOffsetTicks, 0);
+  transaction.update(noteRegion.fields.region.fields.colorIndex, 6);
+  transaction.update(noteRegion.fields.region.fields.displayName, "A major · I – vi – V – I");
 
   progression.forEach((tones, barIndex) => {
     tones.forEach((tone, toneIndex) => {

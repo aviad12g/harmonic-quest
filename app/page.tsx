@@ -427,7 +427,7 @@ export default function Home() {
     setSyncMessage("Opening the live project and writing your progression…");
 
     let nexus: Awaited<ReturnType<AuthenticatedClient["open"]>> | undefined;
-    let transactionStage: string | undefined;
+    let syncStage = "opening the project session";
     try {
       const selectedProject = projects.find((project) => project.url === projectUrl);
       nexus = await within(
@@ -435,31 +435,33 @@ export default function Home() {
         15_000,
         "Audiotool did not open the project session within 15 seconds. Open the project once in Audiotool, then retry.",
       );
+      syncStage = "starting document synchronization";
       setSyncMessage("Project session opened. Synchronizing the Audiotool timeline…");
       await within(
         nexus.start(),
         20_000,
         "Audiotool opened the project but did not finish synchronizing within 20 seconds. Retry when the studio is fully loaded.",
       );
+      syncStage = "waiting for the live write connection";
       setSyncMessage("Project synchronized. Waiting for Audiotool's live write connection…");
       await waitUntilConnected(nexus.connected, 20_000);
       setSyncMessage("Live connection ready. Building one atomic Audiotool transaction…");
       const totalTicks = Ticks.Bars(4);
-      transactionStage = "querying the live arrangement";
+      syncStage = "querying the live arrangement";
       await within(
         nexus.modify((transaction) => {
-          transactionStage = "querying existing tracks and channels";
+          syncStage = "querying existing tracks and channels";
           const trackOrder = transaction.entities.ofTypes("noteTrack").get().length;
           const stripOrder = transaction.entities.ofTypes("mixerChannel").get().length;
-          transactionStage = "finding earlier Harmonic Quest devices";
+          syncStage = "finding earlier Harmonic Quest devices";
           const previousSynths = transaction.entities
             .ofTypes("heisenberg")
             .get()
             .filter((entity) => entity.fields.displayName.value === "Harmonic Quest · Chords");
 
-          transactionStage = "replacing an earlier Harmonic Quest arrangement";
+          syncStage = "replacing an earlier Harmonic Quest arrangement";
           previousSynths.forEach((entity) => transaction.removeWithDependencies(entity));
-          transactionStage = "creating the Heisenberg synth";
+          syncStage = "creating the Heisenberg synth";
           const synth = transaction.create("heisenberg", {
             displayName: "Harmonic Quest · Chords",
             positionX: 120,
@@ -469,7 +471,7 @@ export default function Home() {
             unisonoCount: 2,
             unisonoStereoSpreadFactor: 0.36,
           });
-          transactionStage = "creating the mixer channel";
+          syncStage = "creating the mixer channel";
           const channel = transaction.create("mixerChannel", {
             displayParameters: {
               orderAmongStrips: stripOrder,
@@ -477,20 +479,20 @@ export default function Home() {
               colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
             },
           });
-          transactionStage = "connecting the synth to the mixer";
+          syncStage = "connecting the synth to the mixer";
           transaction.create("desktopAudioCable", {
             fromSocket: synth.fields.audioOutput.location,
             toSocket: channel.fields.audioInput.location,
             colorIndex: questId === "shadow" ? 10 : 6,
           });
-          transactionStage = "creating the MIDI track";
+          syncStage = "creating the MIDI track";
           const track = transaction.create("noteTrack", {
             player: synth.location,
             orderAmongTracks: trackOrder,
           });
-          transactionStage = "creating the note collection";
+          syncStage = "creating the note collection";
           const collection = transaction.create("noteCollection", {});
-          transactionStage = "creating the four-bar MIDI region";
+          syncStage = "creating the four-bar MIDI region";
           transaction.create("noteRegion", {
             track: track.location,
             collection: collection.location,
@@ -504,7 +506,7 @@ export default function Home() {
               displayName: `${KEYS[keyIndex]} ${quest.mode} · ${chosenChords.map((chord) => chord.roman).join(" – ")}`,
             },
           });
-          transactionStage = "creating the chord notes";
+          syncStage = "creating the chord notes";
           chosenChords.forEach((chord, barIndex) => {
             chord.tones.forEach((tone, toneIndex) => {
               transaction.create("note", {
@@ -516,7 +518,7 @@ export default function Home() {
               });
             });
           });
-          transactionStage = "validating and sending the transaction";
+          syncStage = "validating and sending the transaction";
         }),
         20_000,
         "Audiotool's live write did not complete within 20 seconds. Keep the Studio open, then retry.",
@@ -540,7 +542,10 @@ export default function Home() {
       }
       setSyncState("error");
       const detail = error instanceof Error ? error.message : "Audiotool could not sync this project yet.";
-      setSyncMessage(transactionStage ? `Audiotool failed while ${transactionStage}: ${detail}` : detail);
+      const debugDetail = new URLSearchParams(window.location.search).get("debug") === "nexus" && error instanceof Error
+        ? error.stack ?? detail
+        : detail;
+      setSyncMessage(`Audiotool failed while ${syncStage}: ${debugDetail}`);
     }
   }
 

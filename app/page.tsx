@@ -373,13 +373,13 @@ export default function Home() {
         20_000,
         "Audiotool opened the project but did not finish synchronizing within 20 seconds. Retry when the studio is fully loaded.",
       );
-      setSyncMessage("Project synchronized. Writing the synth, routing, region, and notes…");
+      setSyncMessage("Project synchronized. Creating the Harmonic Quest synthesizer…");
       const trackOrder = nexus.queryEntities.ofTypes("noteTrack").get().length;
       const stripOrder = nexus.queryEntities.ofTypes("mixerChannel").get().length;
       const totalTicks = Ticks.Bars(4);
 
-      await nexus.modify((transaction) => {
-        const synth = transaction.create("heisenberg", {
+      const synth = await within(
+        nexus.modify((transaction) => transaction.create("heisenberg", {
           displayName: "Harmonic Quest · Chords",
           positionX: 120,
           positionY: 160 + stripOrder * 36,
@@ -387,26 +387,49 @@ export default function Home() {
           gain: 0.58,
           unisonoCount: 2,
           unisonoStereoSpreadFactor: 0.36,
-        });
-        const channel = transaction.create("mixerChannel", {
+        })),
+        15_000,
+        "Audiotool synchronized, but did not confirm creation of the synthesizer within 15 seconds.",
+      );
+
+      setSyncMessage("Synth created. Adding its mixer channel and audio routing…");
+      const channel = await within(
+        nexus.modify((transaction) => transaction.create("mixerChannel", {
           displayParameters: {
             orderAmongStrips: stripOrder,
             displayName: "Harmonic Quest",
             colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
           },
-        });
-        transaction.create("desktopAudioCable", {
+        })),
+        15_000,
+        "The synthesizer was created, but Audiotool did not confirm its mixer channel within 15 seconds.",
+      );
+      await within(
+        nexus.modify((transaction) => transaction.create("desktopAudioCable", {
           fromSocket: synth.fields.audioOutput.location,
           toSocket: channel.fields.audioInput.location,
           colorIndex: questId === "shadow" ? 10 : 6,
-        });
+        })),
+        15_000,
+        "Audiotool did not confirm the synth-to-mixer cable within 15 seconds.",
+      );
 
-        const track = transaction.create("noteTrack", {
+      setSyncMessage("Routing complete. Building the editable MIDI timeline…");
+      const track = await within(
+        nexus.modify((transaction) => transaction.create("noteTrack", {
           player: synth.location,
           orderAmongTracks: trackOrder,
-        });
-        const collection = transaction.create("noteCollection", {});
-        transaction.create("noteRegion", {
+        })),
+        15_000,
+        "Audiotool did not confirm the MIDI track within 15 seconds.",
+      );
+      const collection = await within(
+        nexus.modify((transaction) => transaction.create("noteCollection", {})),
+        15_000,
+        "Audiotool did not confirm the MIDI note collection within 15 seconds.",
+      );
+      await within(
+        nexus.modify((transaction) => transaction.create("noteRegion", {
           track: track.location,
           collection: collection.location,
           region: {
@@ -418,21 +441,31 @@ export default function Home() {
             colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
             displayName: `${KEYS[keyIndex]} ${quest.mode} · ${chosenChords.map((chord) => chord.roman).join(" – ")}`,
           },
-        });
+        })),
+        15_000,
+        "Audiotool did not confirm the four-bar MIDI region within 15 seconds.",
+      );
 
-        chosenChords.forEach((chord, barIndex) => {
-          chord.tones.forEach((tone, toneIndex) => {
-            transaction.create("note", {
-              collection: collection.location,
-              positionTicks: barIndex * Ticks.SemiBreve,
-              durationTicks: Ticks.SemiBreve - Ticks.SemiQuaver,
-              pitch: 48 + keyIndex + tone,
-              velocity: toneIndex === 0 ? 0.76 : 0.64,
+      setSyncMessage("MIDI region ready. Writing all twelve playable chord notes…");
+      await within(
+        nexus.modify((transaction) => {
+          chosenChords.forEach((chord, barIndex) => {
+            chord.tones.forEach((tone, toneIndex) => {
+              transaction.create("note", {
+                collection: collection.location,
+                positionTicks: barIndex * Ticks.SemiBreve,
+                durationTicks: Ticks.SemiBreve - Ticks.SemiQuaver,
+                pitch: 48 + keyIndex + tone,
+                velocity: toneIndex === 0 ? 0.76 : 0.64,
+              });
             });
           });
-        });
-      });
+        }),
+        15_000,
+        "Audiotool created the region but did not confirm all twelve MIDI notes within 15 seconds.",
+      );
 
+      setSyncMessage("Arrangement written. Closing the live synchronization session…");
       await nexus.stop();
       nexus = undefined;
       setSyncState("done");

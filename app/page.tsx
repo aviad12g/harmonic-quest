@@ -156,6 +156,18 @@ function noteName(keyIndex: number, semitones: number) {
   return KEYS[(keyIndex + semitones) % 12];
 }
 
+async function within<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  let timer: ReturnType<typeof window.setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+}
+
 export default function Home() {
   const [questId, setQuestId] = useState("lift");
   const [keyIndex, setKeyIndex] = useState(0);
@@ -350,8 +362,18 @@ export default function Home() {
     let nexus: Awaited<ReturnType<AuthenticatedClient["open"]>> | undefined;
     try {
       const selectedProject = projects.find((project) => project.url === projectUrl);
-      nexus = await at.open(selectedProject?.resourceName ?? projectUrl.trim());
-      await nexus.start();
+      nexus = await within(
+        at.open(selectedProject?.resourceName ?? projectUrl.trim()),
+        15_000,
+        "Audiotool did not open the project session within 15 seconds. Open the project once in Audiotool, then retry.",
+      );
+      setSyncMessage("Project session opened. Synchronizing the Audiotool timeline…");
+      await within(
+        nexus.start(),
+        20_000,
+        "Audiotool opened the project but did not finish synchronizing within 20 seconds. Retry when the studio is fully loaded.",
+      );
+      setSyncMessage("Project synchronized. Writing the synth, routing, region, and notes…");
       const trackOrder = nexus.queryEntities.ofTypes("noteTrack").get().length;
       const stripOrder = nexus.queryEntities.ofTypes("mixerChannel").get().length;
       const totalTicks = Ticks.Bars(4);

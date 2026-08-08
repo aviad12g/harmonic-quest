@@ -9,6 +9,7 @@ import {
 import { Ticks } from "@audiotool/nexus/utils";
 
 const CLIENT_ID = "4412a0cc-00ef-4e83-a232-0e8b9d577ef0";
+const QUEST_STORAGE_KEY = "harmonic-quest:oauth-return";
 
 const KEYS = ["C", "D♭", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
 
@@ -34,6 +35,13 @@ type Quest = {
 type ProjectOption = {
   name: string;
   url: string;
+};
+
+type StoredQuest = {
+  questId: string;
+  keyIndex: number;
+  tempo: number;
+  progression: number[];
 };
 
 const QUESTS: Quest[] = [
@@ -170,11 +178,39 @@ export default function Home() {
   const flowScore = voiceLeadingScore(chosenChords);
   const arcScore = Math.min(100, 34 + progression.length * 14 + new Set(progression).size * 7);
 
-  useEffect(() => {
+  function selectQuest(nextQuestId: string) {
+    setQuestId(nextQuestId);
     setProgression([0]);
     setSyncState("idle");
     setSyncMessage("New quest selected. Build four bars, then send them to Audiotool.");
-  }, [questId]);
+  }
+
+  useEffect(() => {
+    const raw = window.sessionStorage.getItem(QUEST_STORAGE_KEY);
+    if (!raw) return;
+    window.sessionStorage.removeItem(QUEST_STORAGE_KEY);
+
+    try {
+      const stored = JSON.parse(raw) as Partial<StoredQuest>;
+      const validQuest = QUESTS.some((item) => item.id === stored.questId);
+      const validKey = Number.isInteger(stored.keyIndex) && Number(stored.keyIndex) >= 0 && Number(stored.keyIndex) < KEYS.length;
+      const validTempo = Number.isInteger(stored.tempo) && Number(stored.tempo) >= 60 && Number(stored.tempo) <= 150;
+      const validProgression = Array.isArray(stored.progression)
+        && stored.progression.length >= 1
+        && stored.progression.length <= 4
+        && stored.progression.every((index) => Number.isInteger(index) && index >= 0 && index < 7);
+
+      if (!validQuest || !validKey || !validTempo || !validProgression) return;
+      setQuestId(stored.questId as string);
+      setKeyIndex(stored.keyIndex as number);
+      setTempo(stored.tempo as number);
+      setProgression(stored.progression as number[]);
+      setSyncState("idle");
+      setSyncMessage("Your quest was restored after Audiotool authorization. Choose a project and send it live.");
+    } catch {
+      // Ignore malformed device-local state and keep the fresh quest.
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -193,7 +229,7 @@ export default function Home() {
 
         if (at.status === "authenticated") {
           setAuthState("signed-in");
-          setAudioToolUser(at.userName);
+          setAudioToolUser(at.userName.replace(/^users\//, ""));
           try {
             const response = await at.projects.listProjects({ pageSize: 30 });
             if (!active) return;
@@ -281,7 +317,11 @@ export default function Home() {
     const at = clientRef.current;
     if (!at) return;
     if (at.status === "authenticated") at.logout();
-    else at.login();
+    else {
+      const storedQuest: StoredQuest = { questId, keyIndex, tempo, progression };
+      window.sessionStorage.setItem(QUEST_STORAGE_KEY, JSON.stringify(storedQuest));
+      at.login();
+    }
   }
 
   async function sendToAudiotool() {
@@ -447,7 +487,7 @@ export default function Home() {
               className={`quest-card ${questId === item.id ? "selected" : ""} ${item.accent}`}
               type="button"
               key={item.id}
-              onClick={() => setQuestId(item.id)}
+              onClick={() => selectQuest(item.id)}
               aria-pressed={questId === item.id}
             >
               <span className="quest-index">0{index + 1}</span>

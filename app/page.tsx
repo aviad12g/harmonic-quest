@@ -34,6 +34,7 @@ type Quest = {
 
 type ProjectOption = {
   name: string;
+  resourceName: string;
   url: string;
 };
 
@@ -237,6 +238,7 @@ export default function Home() {
               const id = project.name.replace(/^projects\//, "");
               return {
                 name: project.displayName || "Untitled project",
+                resourceName: project.name,
                 url: `https://www.audiotool.com/studio?project=${id}`,
               };
             });
@@ -347,7 +349,8 @@ export default function Home() {
 
     let nexus: Awaited<ReturnType<AuthenticatedClient["open"]>> | undefined;
     try {
-      nexus = await at.open(projectUrl.trim());
+      const selectedProject = projects.find((project) => project.url === projectUrl);
+      nexus = await at.open(selectedProject?.resourceName ?? projectUrl.trim());
       await nexus.start();
       const trackOrder = nexus.queryEntities.ofTypes("noteTrack").get().length;
       const stripOrder = nexus.queryEntities.ofTypes("mixerChannel").get().length;

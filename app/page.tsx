@@ -349,7 +349,7 @@ export default function Home() {
     setSyncState("syncing");
     setSyncMessage("Creating a clean Audiotool project for this quest…");
     try {
-      const result = await at.api.projectService.createProject({
+      const result = await at.projects.createProject({
         project: { displayName: "Harmonic Quest Session" },
       });
       if (result instanceof Error || !result.project) {

@@ -338,6 +338,40 @@ export default function Home() {
     }
   }
 
+  async function createAudiotoolProject() {
+    const at = clientRef.current;
+    if (!at || at.status !== "authenticated") {
+      setSyncState("error");
+      setSyncMessage("Sign in to Audiotool before creating a project.");
+      return;
+    }
+
+    setSyncState("syncing");
+    setSyncMessage("Creating a clean Audiotool project for this quest…");
+    try {
+      const result = await at.api.projectService.createProject({
+        project: { displayName: "Harmonic Quest Session" },
+      });
+      if (result instanceof Error || !result.project) {
+        throw result instanceof Error ? result : new Error("Audiotool did not return the new project.");
+      }
+
+      const id = result.project.name.replace(/^projects\//, "");
+      const option: ProjectOption = {
+        name: result.project.displayName || "Harmonic Quest Session",
+        resourceName: result.project.name,
+        url: `https://www.audiotool.com/studio?project=${id}`,
+      };
+      setProjects((current) => [option, ...current.filter((project) => project.resourceName !== option.resourceName)]);
+      setProjectUrl(option.url);
+      setSyncState("done");
+      setSyncMessage("Clean Audiotool project created and selected. Complete the quest, then send it live.");
+    } catch (error) {
+      setSyncState("error");
+      setSyncMessage(error instanceof Error ? error.message : "Audiotool could not create the project.");
+    }
+  }
+
   async function sendToAudiotool() {
     const at = clientRef.current;
     if (!at || at.status !== "authenticated") {
@@ -686,8 +720,15 @@ export default function Home() {
             />
           </label>
 
-          {authState === "signed-in" && projects.length === 0 && (
-            <a className="new-project-link" href="https://www.audiotool.com/projects" target="_blank" rel="noreferrer">Create a blank Audiotool project ↗</a>
+          {authState === "signed-in" && (
+            <button
+              className="new-project-link"
+              type="button"
+              onClick={() => void createAudiotoolProject()}
+              disabled={syncState === "syncing"}
+            >
+              Create a clean Audiotool project ↗
+            </button>
           )}
 
           <div className="payload-preview">

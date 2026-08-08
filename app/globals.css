@@ -225,7 +225,8 @@ button { color: inherit; }
 .connection-state button { border: 1px solid rgba(255,255,255,.3); background: transparent; color: white; padding: 8px 11px; font-size: 10px; cursor: pointer; }
 .project-select, .project-url { display: grid; gap: 8px; padding: 16px 22px 0; font: 620 9px/1 var(--font-geist-mono); letter-spacing: .1em; text-transform: uppercase; color: #959aa7; }
 .project-select select, .project-url input { width: 100%; background: #222632; color: var(--paper); border: 1px solid rgba(255,255,255,.16); padding: 12px; font: 500 12px/1.2 var(--font-geist-sans); text-transform: none; letter-spacing: 0; }
-.new-project-link { color: var(--acid); font: 620 10px/1 var(--font-geist-mono); margin: 12px 22px 0; display: inline-block; }
+.new-project-link { color: var(--acid); font: 620 10px/1 var(--font-geist-mono); margin: 12px 22px 0; padding: 0; display: inline-block; width: fit-content; background: transparent; border: 0; cursor: pointer; text-align: left; }
+.new-project-link:disabled { cursor: wait; opacity: 0.55; }
 .payload-preview { margin: 18px 22px 0; border: 1px solid rgba(255,255,255,.15); background: #11141c; }
 .payload-preview > span { display: block; border-bottom: 1px solid rgba(255,255,255,.12); padding: 9px 11px; font: 620 8px/1 var(--font-geist-mono); letter-spacing: .11em; color: #7f8490; }
 .payload-preview code { display: block; white-space: pre; padding: 13px; font: 500 11px/1.7 var(--font-geist-mono); color: #c2eead; }

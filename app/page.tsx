@@ -168,6 +168,39 @@ async function within<T>(promise: Promise<T>, timeoutMs: number, message: string
   }
 }
 
+type ConnectionSignal = {
+  getValue: () => boolean;
+  subscribe: (
+    callback: (connected: boolean) => void,
+    initialTrigger?: boolean,
+  ) => { terminate: () => void };
+};
+
+async function waitUntilConnected(signal: ConnectionSignal, timeoutMs: number) {
+  if (signal.getValue()) return;
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    let subscription: { terminate: () => void } | undefined;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      subscription?.terminate();
+      reject(new Error("Audiotool synchronized the project but its live write connection is not ready yet. Keep the Studio open, then retry."));
+    }, timeoutMs);
+
+    subscription = signal.subscribe((connected) => {
+      if (!connected || settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      subscription?.terminate();
+      resolve();
+    }, true);
+
+    if (settled) subscription.terminate();
+  });
+}
+
 export default function Home() {
   const [questId, setQuestId] = useState("lift");
   const [keyIndex, setKeyIndex] = useState(0);
@@ -407,84 +440,90 @@ export default function Home() {
         20_000,
         "Audiotool opened the project but did not finish synchronizing within 20 seconds. Retry when the studio is fully loaded.",
       );
-      setSyncMessage("Project synchronized. Building one atomic Audiotool transaction…");
-      const trackOrder = nexus.queryEntities.ofTypes("noteTrack").get().length;
-      const stripOrder = nexus.queryEntities.ofTypes("mixerChannel").get().length;
+      setSyncMessage("Project synchronized. Waiting for Audiotool's live write connection…");
+      await waitUntilConnected(nexus.connected, 20_000);
+      setSyncMessage("Live connection ready. Building one atomic Audiotool transaction…");
       const totalTicks = Ticks.Bars(4);
-      const previousSynths = nexus.queryEntities
-        .ofTypes("heisenberg")
-        .get()
-        .filter((entity) => entity.fields.displayName.value === "Harmonic Quest · Chords");
-      const transaction = await within(
-        nexus.createTransaction(),
-        15_000,
-        "Audiotool synchronized, but did not make the project writable within 15 seconds.",
+      await within(
+        nexus.modify((transaction) => {
+          const trackOrder = transaction.entities.ofTypes("noteTrack").get().length;
+          const stripOrder = transaction.entities.ofTypes("mixerChannel").get().length;
+          const previousSynths = transaction.entities
+            .ofTypes("heisenberg")
+            .get()
+            .filter((entity) => entity.fields.displayName.value === "Harmonic Quest · Chords");
+
+          previousSynths.forEach((entity) => transaction.removeWithDependencies(entity));
+          const synth = transaction.create("heisenberg", {
+            displayName: "Harmonic Quest · Chords",
+            positionX: 120,
+            positionY: 160 + stripOrder * 36,
+            playModeIndex: 4,
+            gain: 0.58,
+            unisonoCount: 2,
+            unisonoStereoSpreadFactor: 0.36,
+          });
+          const channel = transaction.create("mixerChannel", {
+            displayParameters: {
+              orderAmongStrips: stripOrder,
+              displayName: "Harmonic Quest",
+              colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
+            },
+          });
+          transaction.create("desktopAudioCable", {
+            fromSocket: synth.fields.audioOutput.location,
+            toSocket: channel.fields.audioInput.location,
+            colorIndex: questId === "shadow" ? 10 : 6,
+          });
+          const track = transaction.create("noteTrack", {
+            player: synth.location,
+            orderAmongTracks: trackOrder,
+          });
+          const collection = transaction.create("noteCollection", {});
+          transaction.create("noteRegion", {
+            track: track.location,
+            collection: collection.location,
+            region: {
+              positionTicks: 0,
+              durationTicks: totalTicks,
+              loopDurationTicks: totalTicks,
+              collectionOffsetTicks: 0,
+              loopOffsetTicks: 0,
+              colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
+              displayName: `${KEYS[keyIndex]} ${quest.mode} · ${chosenChords.map((chord) => chord.roman).join(" – ")}`,
+            },
+          });
+          chosenChords.forEach((chord, barIndex) => {
+            chord.tones.forEach((tone, toneIndex) => {
+              transaction.create("note", {
+                collection: collection.location,
+                positionTicks: barIndex * Ticks.SemiBreve,
+                durationTicks: Ticks.SemiBreve - Ticks.SemiQuaver,
+                pitch: 48 + keyIndex + tone,
+                velocity: toneIndex === 0 ? 0.76 : 0.64,
+              });
+            });
+          });
+        }),
+        20_000,
+        "Audiotool's live write did not complete within 20 seconds. Keep the Studio open, then retry.",
       );
 
-      previousSynths.forEach((entity) => transaction.removeWithDependencies(entity));
-      const synth = transaction.create("heisenberg", {
-        displayName: "Harmonic Quest · Chords",
-        positionX: 120,
-        positionY: 160 + stripOrder * 36,
-        playModeIndex: 4,
-        gain: 0.58,
-        unisonoCount: 2,
-        unisonoStereoSpreadFactor: 0.36,
-      });
-      const channel = transaction.create("mixerChannel", {
-        displayParameters: {
-          orderAmongStrips: stripOrder,
-          displayName: "Harmonic Quest",
-          colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
-        },
-      });
-      transaction.create("desktopAudioCable", {
-        fromSocket: synth.fields.audioOutput.location,
-        toSocket: channel.fields.audioInput.location,
-        colorIndex: questId === "shadow" ? 10 : 6,
-      });
-      const track = transaction.create("noteTrack", {
-        player: synth.location,
-        orderAmongTracks: trackOrder,
-      });
-      const collection = transaction.create("noteCollection", {});
-      transaction.create("noteRegion", {
-        track: track.location,
-        collection: collection.location,
-        region: {
-          positionTicks: 0,
-          durationTicks: totalTicks,
-          loopDurationTicks: totalTicks,
-          collectionOffsetTicks: 0,
-          loopOffsetTicks: 0,
-          colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
-          displayName: `${KEYS[keyIndex]} ${quest.mode} · ${chosenChords.map((chord) => chord.roman).join(" – ")}`,
-        },
-      });
-      chosenChords.forEach((chord, barIndex) => {
-        chord.tones.forEach((tone, toneIndex) => {
-          transaction.create("note", {
-            collection: collection.location,
-            positionTicks: barIndex * Ticks.SemiBreve,
-            durationTicks: Ticks.SemiBreve - Ticks.SemiQuaver,
-            pitch: 48 + keyIndex + tone,
-            velocity: toneIndex === 0 ? 0.76 : 0.64,
-          });
-        });
-      });
-
-      setSyncMessage("Transaction validated. Sending the complete arrangement to Audiotool…");
-      transaction.send();
+      setSyncMessage("Transaction validated and sent to Audiotool.");
+      const completedNexus = nexus;
       nexus = undefined;
+      void completedNexus.stop().catch(() => {
+        // The transaction has already been sent; background cleanup should not obscure success.
+      });
       setSyncState("done");
       setSyncMessage("Progression written live: synth, mixer channel, MIDI region, and all four chords are now in Audiotool.");
     } catch (error) {
       if (nexus) {
-        try {
-          await nexus.stop();
-        } catch {
+        const failedNexus = nexus;
+        nexus = undefined;
+        void failedNexus.stop().catch(() => {
           // The original synchronization error is the useful one.
-        }
+        });
       }
       setSyncState("error");
       setSyncMessage(error instanceof Error ? error.message : "Audiotool could not sync this project yet.");

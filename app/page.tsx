@@ -633,7 +633,10 @@ export default function Home() {
       <footer>
         <div className="brand footer-brand"><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span><span>Harmonic Quest</span></div>
         <p>Built for Audiotool Let’s Build! 2026 · Your ideas remain yours.</p>
-        <a href="https://github.com/audiotool/nexus" target="_blank" rel="noreferrer">Nexus SDK ↗</a>
+        <div className="footer-links">
+          <a href="https://github.com/aviad12g/harmonic-quest" target="_blank" rel="noreferrer">Source ↗</a>
+          <a href="https://github.com/audiotool/nexus" target="_blank" rel="noreferrer">Nexus SDK ↗</a>
+        </div>
       </footer>
     </main>
   );

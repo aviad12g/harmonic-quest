@@ -25,13 +25,10 @@ test("creates the Harmonic Quest Nexus arrangement", async () => {
     unisonoCount: 2,
     unisonoStereoSpreadFactor: 0.36,
   });
-  const channel = transaction.create("mixerChannel", {
-    displayParameters: {
-      orderAmongStrips: 0,
-      displayName: "Harmonic Quest",
-      colorIndex: 6,
-    },
-  });
+  const channel = transaction.create("mixerChannel", {});
+  transaction.update(channel.fields.displayParameters.fields.orderAmongStrips, 0);
+  transaction.update(channel.fields.displayParameters.fields.displayName, "Harmonic Quest");
+  transaction.update(channel.fields.displayParameters.fields.colorIndex, 6);
   transaction.create("desktopAudioCable", {
     fromSocket: synth.fields.audioOutput.location,
     toSocket: channel.fields.audioInput.location,

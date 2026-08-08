@@ -472,13 +472,14 @@ export default function Home() {
             unisonoStereoSpreadFactor: 0.36,
           });
           syncStage = "creating the mixer channel";
-          const channel = transaction.create("mixerChannel", {
-            displayParameters: {
-              orderAmongStrips: stripOrder,
-              displayName: "Harmonic Quest",
-              colorIndex: questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
-            },
-          });
+          const channel = transaction.create("mixerChannel", {});
+          syncStage = "labeling the mixer channel";
+          transaction.update(channel.fields.displayParameters.fields.orderAmongStrips, stripOrder);
+          transaction.update(channel.fields.displayParameters.fields.displayName, "Harmonic Quest");
+          transaction.update(
+            channel.fields.displayParameters.fields.colorIndex,
+            questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
+          );
           syncStage = "connecting the synth to the mixer";
           transaction.create("desktopAudioCable", {
             fromSocket: synth.fields.audioOutput.location,

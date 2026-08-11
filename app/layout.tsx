@@ -20,12 +20,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = forwardedProtocol ?? (host.startsWith("127.0.0.1") || host.startsWith("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
   const title = "Harmonic Quest — Compose by ear";
-  const description = "A four-move harmony game that teaches musical intent and writes playable ideas into Audiotool through Nexus.";
+  const description = "A four-bar harmony quest that teaches musical intent and writes playable ideas into Audiotool through Nexus.";
 
   return {
     metadataBase: new URL(origin),
     title,
     description,
+    icons: {
+      icon: "/harmonic-quest-icon.svg",
+    },
     openGraph: {
       title,
       description,

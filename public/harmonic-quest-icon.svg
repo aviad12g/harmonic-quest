@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">Harmonic Quest app icon</title>
+  <desc id="description">A luminous harmonic orbit with four chord points on a dark blue field.</desc>
+  <rect width="1024" height="1024" rx="176" fill="#101827"/>
+  <path d="M0 168h1024M0 344h1024M0 520h1024M0 696h1024M0 872h1024M168 0v1024M344 0v1024M520 0v1024M696 0v1024M872 0v1024" fill="none" stroke="#e9e5da" stroke-opacity=".06" stroke-width="2"/>
+  <circle cx="512" cy="512" r="350" fill="none" stroke="#eef0e9" stroke-opacity=".22" stroke-width="3"/>
+  <circle cx="512" cy="512" r="258" fill="none" stroke="#8ec5ff" stroke-opacity=".48" stroke-width="3" stroke-dasharray="12 18"/>
+  <path d="M512 122v780M122 512h780" fill="none" stroke="#eef0e9" stroke-opacity=".18" stroke-width="3" stroke-dasharray="9 14"/>
+  <circle cx="512" cy="512" r="140" fill="#d9ff5a" stroke="#f3f0e8" stroke-width="18"/>
+  <circle cx="512" cy="512" r="104" fill="none" stroke="#101827" stroke-opacity=".16" stroke-width="3"/>
+  <path d="M512 425v174M425 512h174M451 451l122 122M573 451 451 573" stroke="#101827" stroke-width="6" stroke-linecap="round"/>
+  <g fill="#f3f0e8" stroke="#101827" stroke-width="12">
+    <circle cx="512" cy="162" r="70"/>
+    <circle cx="862" cy="512" r="70"/>
+    <circle cx="512" cy="862" r="70"/>
+    <circle cx="162" cy="512" r="70"/>
+  </g>
+  <g fill="#101827" font-family="Georgia, 'Times New Roman', serif" font-size="76" font-weight="700" text-anchor="middle">
+    <text x="512" y="188">I</text>
+    <text x="862" y="538">V</text>
+    <text x="512" y="888">I</text>
+    <text x="162" y="538" font-size="64">vi</text>
+  </g>
+  <g fill="#ff756b">
+    <circle cx="727" cy="236" r="18"/>
+    <circle cx="788" cy="755" r="18"/>
+  </g>
+  <g fill="#8ec5ff">
+    <circle cx="246" cy="286" r="16"/>
+    <circle cx="271" cy="784" r="16"/>
+  </g>
+</svg>

@@ -6,7 +6,7 @@ import {
   type AuthenticatedClient,
   type BrowserAuthResult,
 } from "@audiotool/nexus";
-import { Ticks } from "@audiotool/nexus/utils";
+import { writeHarmonicQuestArrangement } from "./nexus-arrangement.js";
 
 const CLIENT_ID = "4412a0cc-00ef-4e83-a232-0e8b9d577ef0";
 const QUEST_STORAGE_KEY = "harmonic-quest:oauth-return";
@@ -181,23 +181,27 @@ async function waitUntilConnected(signal: ConnectionSignal, timeoutMs: number) {
 
   await new Promise<void>((resolve, reject) => {
     let settled = false;
-    let subscription: { terminate: () => void } | undefined;
     const timer = window.setTimeout(() => {
       if (settled) return;
       settled = true;
-      subscription?.terminate();
+      subscription.terminate();
       reject(new Error("Audiotool synchronized the project but its live write connection is not ready yet. Keep the Studio open, then retry."));
     }, timeoutMs);
 
-    subscription = signal.subscribe((connected) => {
+    const subscription = signal.subscribe((connected) => {
       if (!connected || settled) return;
       settled = true;
       window.clearTimeout(timer);
-      subscription?.terminate();
+      subscription.terminate();
       resolve();
-    }, true);
+    }, false);
 
-    if (settled) subscription.terminate();
+    if (signal.getValue() && !settled) {
+      settled = true;
+      window.clearTimeout(timer);
+      subscription.terminate();
+      resolve();
+    }
   });
 }
 
@@ -247,12 +251,15 @@ export default function Home() {
         && stored.progression.every((index) => Number.isInteger(index) && index >= 0 && index < 7);
 
       if (!validQuest || !validKey || !validTempo || !validProgression) return;
-      setQuestId(stored.questId as string);
-      setKeyIndex(stored.keyIndex as number);
-      setTempo(stored.tempo as number);
-      setProgression(stored.progression as number[]);
-      setSyncState("idle");
-      setSyncMessage("Your quest was restored after Audiotool authorization. Choose a project and send it live.");
+      const restoreTimer = window.setTimeout(() => {
+        setQuestId(stored.questId as string);
+        setKeyIndex(stored.keyIndex as number);
+        setTempo(stored.tempo as number);
+        setProgression(stored.progression as number[]);
+        setSyncState("idle");
+        setSyncMessage("Your quest was restored after Audiotool authorization. Choose a project and send it live.");
+      }, 0);
+      return () => window.clearTimeout(restoreTimer);
     } catch {
       // Ignore malformed device-local state and keep the fresh quest.
     }
@@ -333,7 +340,7 @@ export default function Home() {
     if (isPlaying || chosenChords.length === 0) return;
     const context = new AudioContext();
     const secondsPerBeat = 60 / tempo;
-    const chordDuration = secondsPerBeat * 2;
+    const chordDuration = secondsPerBeat * 4;
     const start = context.currentTime + 0.08;
     setIsPlaying(true);
 
@@ -446,89 +453,40 @@ export default function Home() {
       setSyncMessage("Project synchronized. Waiting for Audiotool's live write connection…");
       await waitUntilConnected(nexus.connected, 20_000);
       setSyncMessage("Live connection ready. Building one atomic Audiotool transaction…");
-      const totalTicks = Ticks.Bars(4);
       syncStage = "querying the live arrangement";
-      await within(
-        nexus.modify((transaction) => {
-          syncStage = "querying existing tracks and channels";
-          const trackOrder = transaction.entities.ofTypes("noteTrack").get().length;
-          const stripOrder = transaction.entities.ofTypes("mixerChannel").get().length;
-          syncStage = "finding earlier Harmonic Quest devices";
-          const previousSynths = transaction.entities
-            .ofTypes("heisenberg")
-            .get()
-            .filter((entity) => entity.fields.displayName.value === "Harmonic Quest · Chords");
-
-          syncStage = "replacing an earlier Harmonic Quest arrangement";
-          previousSynths.forEach((entity) => transaction.removeWithDependencies(entity));
-          syncStage = "creating the Heisenberg synth";
-          const synth = transaction.create("heisenberg", {
-            displayName: "Harmonic Quest · Chords",
-            positionX: 120,
-            positionY: 160 + stripOrder * 36,
-            playModeIndex: 4,
-            gain: 0.58,
-            unisonoCount: 2,
-            unisonoStereoSpreadFactor: 0.36,
-          });
-          syncStage = "creating the mixer channel";
-          const channel = transaction.create("mixerChannel", {});
-          syncStage = "labeling the mixer channel";
-          transaction.update(channel.fields.displayParameters.fields.orderAmongStrips, stripOrder);
-          transaction.update(channel.fields.displayParameters.fields.displayName, "Harmonic Quest");
-          transaction.update(
-            channel.fields.displayParameters.fields.colorIndex,
-            questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
-          );
-          syncStage = "connecting the synth to the mixer";
-          transaction.create("desktopAudioCable", {
-            fromSocket: synth.fields.audioOutput.location,
-            toSocket: channel.fields.audioInput.location,
-            colorIndex: questId === "shadow" ? 10 : 6,
-          });
-          syncStage = "creating the MIDI track";
-          const track = transaction.create("noteTrack", {
-            player: synth.location,
-            orderAmongTracks: trackOrder,
-          });
-          syncStage = "creating the note collection";
-          const collection = transaction.create("noteCollection", {});
-          syncStage = "creating the four-bar MIDI region";
-          const noteRegion = transaction.create("noteRegion", {
-            track: track.location,
-            collection: collection.location,
-          });
-          syncStage = "setting the MIDI region timing";
-          transaction.update(noteRegion.fields.region.fields.positionTicks, 0);
-          transaction.update(noteRegion.fields.region.fields.durationTicks, totalTicks);
-          transaction.update(noteRegion.fields.region.fields.loopDurationTicks, totalTicks);
-          transaction.update(noteRegion.fields.region.fields.collectionOffsetTicks, 0);
-          transaction.update(noteRegion.fields.region.fields.loopOffsetTicks, 0);
-          transaction.update(
-            noteRegion.fields.region.fields.colorIndex,
-            questId === "shadow" ? 10 : questId === "drift" ? 22 : 6,
-          );
-          transaction.update(
-            noteRegion.fields.region.fields.displayName,
-            `${KEYS[keyIndex]} ${quest.mode} · ${chosenChords.map((chord) => chord.roman).join(" – ")}`,
-          );
-          syncStage = "creating the chord notes";
-          chosenChords.forEach((chord, barIndex) => {
-            chord.tones.forEach((tone, toneIndex) => {
-              transaction.create("note", {
-                collection: collection.location,
-                positionTicks: barIndex * Ticks.SemiBreve,
-                durationTicks: Ticks.SemiBreve - Ticks.SemiQuaver,
-                pitch: 48 + keyIndex + tone,
-                velocity: toneIndex === 0 ? 0.76 : 0.64,
-              });
-            });
-          });
-          syncStage = "validating and sending the transaction";
-        }),
+      const writeResult = await within(
+        nexus.modify((transaction) => writeHarmonicQuestArrangement(transaction, {
+          tempoBpm: tempo,
+          keyIndex,
+          keyName: KEYS[keyIndex],
+          mode: quest.mode,
+          questId,
+          chords: chosenChords,
+          onStage: (stage) => {
+            syncStage = stage;
+          },
+        })),
         20_000,
         "Audiotool's live write did not complete within 20 seconds. Keep the Studio open, then retry.",
       );
+
+      if (writeResult.status === "blocked") {
+        syncStage = "checking project tempo controls";
+        if (writeResult.reason === "tempo-automation") {
+          const points = writeResult.automationEventCount === 1
+            ? " It currently contains 1 automation point."
+            : writeResult.automationEventCount > 1
+              ? ` It currently contains ${writeResult.automationEventCount} automation points.`
+              : "";
+          throw new Error(
+            `This project has enabled tempo automation, so ${tempo} BPM would not control playback.${points} `
+            + "Harmonic Quest left the project unchanged. Disable tempo automation or choose a clean project, then retry.",
+          );
+        }
+        throw new Error(
+          "This project's global tempo setup is ambiguous, so Harmonic Quest left it unchanged. Choose a clean project or repair its tempo configuration, then retry.",
+        );
+      }
 
       setSyncMessage("Transaction validated and sent to Audiotool.");
       const completedNexus = nexus;
@@ -537,7 +495,7 @@ export default function Home() {
         // The transaction has already been sent; background cleanup should not obscure success.
       });
       setSyncState("done");
-      setSyncMessage("Progression written live: synth, mixer channel, MIDI region, and all four chords are now in Audiotool.");
+      setSyncMessage(`${tempo} BPM and all four chords were written live as an editable Audiotool arrangement.`);
     } catch (error) {
       if (nexus) {
         const failedNexus = nexus;
@@ -575,7 +533,7 @@ export default function Home() {
           <p className="kicker"><span>01</span> COMPOSE BY EAR</p>
           <h1>Turn instinct into<br /><em>musical intent.</em></h1>
           <p className="hero-lede">
-            A four-move harmony game that lets you hear every choice, understand why it works,
+            A four-bar harmony quest that lets you hear every choice, understand why it works,
             and write the finished idea straight into a live Audiotool session.
           </p>
           <div className="hero-actions">
@@ -583,7 +541,7 @@ export default function Home() {
             <button className="text-button" type="button" onClick={playProgression}>Hear the seed <span>▶</span></button>
           </div>
           <div className="category-row" aria-label="Hackathon categories">
-            <span>Songstarter</span><span>Composition</span><span>Music Games</span><span>Connect</span>
+            <span>Ideation</span><span>Composition</span><span>Music Games</span><span>Connect</span>
           </div>
         </div>
 
@@ -733,13 +691,13 @@ export default function Home() {
           <p className="kicker"><span>04</span> MAKE IT REAL</p>
           <h2>From choice to<br /><em>live session.</em></h2>
           <p>
-            Nexus turns your completed quest into native Audiotool objects: a Heisenberg synth,
-            mixer channel, MIDI track, note region, and playable chord voicings.
+            Nexus writes your selected tempo and completed quest as native Audiotool objects: a
+            Heisenberg synth, mixer channel, MIDI track, note region, and playable chord voicings.
           </p>
           <ol>
             <li><span>1</span><div><strong>Sign in</strong><small>Authorize project:write through Audiotool.</small></div></li>
             <li><span>2</span><div><strong>Choose a project</strong><small>Use one of yours or paste a live studio URL.</small></div></li>
-            <li><span>3</span><div><strong>Send the progression</strong><small>Watch the arrangement appear in the multiplayer DAW.</small></div></li>
+            <li><span>3</span><div><strong>Send the progression</strong><small>Write the tempo and arrangement into the multiplayer DAW.</small></div></li>
           </ol>
         </div>
 
